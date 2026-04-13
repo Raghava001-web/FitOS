@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "FitOS",
+    "slug": "fitos",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "backgroundColor": "#09111f"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#09111f"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
+
