@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Flame, Droplets, Target, Calendar, ChevronRight, Plus, CheckCircle2, Circle, Trophy, Zap, Search, X, Apple } from 'lucide-react'
+import { Flame, Droplets, Target, Calendar, ChevronRight, Plus, CheckCircle2, Circle, Trophy, Zap, Search, X, Apple, ShieldAlert, RefreshCcw } from 'lucide-react'
 import GlassCard from '../components/GlassCard'
 import { useApp } from '../store/AppContext'
 import { FOOD_LIBRARY } from '../data/mockContent'
@@ -23,7 +23,7 @@ const categoryColors = {
 }
 
 export default function ProgressPage() {
-  const { state, dietPlan, completeHabitSlot, logFood } = useApp()
+  const { state, dietPlan, completeHabitSlot, logFood, drawChallenge, completeChallenge } = useApp()
   const [foodSearchOpen, setFoodSearchOpen] = useState(false)
   const [foodQuery, setFoodQuery] = useState('')
 
@@ -241,6 +241,37 @@ export default function ProgressPage() {
                 </div>
               )
             })}
+          </div>
+        )}
+        {/* Streak Recovery Challenge */}
+        {state.habits.some(h => h.streak === 0) && (
+          <div className="mt-4 p-4 rounded-2xl bg-gradient-to-br from-amber-500/10 to-energy/5 border border-amber-500/20">
+            {state.activeChallenge ? (
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <ShieldAlert size={16} className="text-energy" />
+                  <h4 className="text-sm font-semibold text-energy">{state.activeChallenge.title}</h4>
+                </div>
+                <p className="text-xs text-white/60 mb-4">{state.activeChallenge.description}</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-medium px-2 py-1 bg-energy/10 text-energy rounded-md">Reward: {state.activeChallenge.rewardBadge}</span>
+                  <button onClick={completeChallenge} className="px-4 py-1.5 bg-energy text-dark-900 text-xs font-bold rounded-full hover:bg-energy/80 transition-all">
+                    Complete
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex-1">
+                  <h4 className="text-sm font-semibold text-white">Lost a streak?</h4>
+                  <p className="text-[11px] text-white/50 mt-0.5">Draw a recovery challenge to bounce back.</p>
+                </div>
+                <button onClick={drawChallenge} className="flex items-center gap-1.5 px-3 py-1.5 border border-energy/30 text-energy text-xs font-medium rounded-full hover:bg-energy/10 transition-all shrink-0">
+                  <RefreshCcw size={12} />
+                  Draw
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

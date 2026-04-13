@@ -161,7 +161,9 @@ export const restoreHabitStreak = (habit: Habit): Habit => {
   const today = todayKey();
   return {
     ...habit,
+    streak: Math.max(habit.streak, 1),
     lastCompletedDate: today,
-    completedSlotsToday: habit.timeSlots
+    lastSlotDate: today,
+    completedSlotsToday: [...habit.timeSlots]
   };
 };

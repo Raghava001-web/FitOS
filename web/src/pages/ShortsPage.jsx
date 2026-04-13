@@ -1,50 +1,23 @@
 import { useState } from 'react'
 import { Heart, MessageCircle, Share2, Bookmark, Play, Volume2, VolumeX, ChevronUp, ChevronDown, Verified } from 'lucide-react'
 
-const shorts = [
-  {
-    id: 1,
-    user: 'Mike Thurston',
-    handle: '@mikethurston',
-    verified: true,
-    avatar: '💪',
-    caption: 'The only chest exercise you need for mass 🔥',
-    likes: '24.5K',
-    comments: '1.2K',
-    shares: '890',
-    gradient: 'from-rose-900/40 via-dark-900 to-dark-950',
-    tag: 'Chest',
-    duration: '0:45',
-  },
-  {
-    id: 2,
-    user: 'Jeff Nippard',
-    handle: '@jeffnippard',
-    verified: true,
-    avatar: '🧠',
-    caption: 'Science-based leg day routine for growth',
-    likes: '18.2K',
-    comments: '956',
-    shares: '1.1K',
-    gradient: 'from-blue-900/40 via-dark-900 to-dark-950',
-    tag: 'Legs',
-    duration: '1:02',
-  },
-  {
-    id: 3,
-    user: 'Natacha Océane',
-    handle: '@natachaoceane',
-    verified: true,
-    avatar: '🔥',
-    caption: 'No-equipment full body HIIT workout',
-    likes: '32.1K',
-    comments: '2.4K',
-    shares: '3.2K',
-    gradient: 'from-amber-900/40 via-dark-900 to-dark-950',
-    tag: 'HIIT',
-    duration: '0:58',
-  },
-]
+import { SHORTS_FEED } from '../data/mockContent'
+
+// We map SHORTS_FEED to include some mock social data for the UI
+const shorts = SHORTS_FEED.map((short, i) => ({
+  id: short.id,
+  user: short.athlete,
+  handle: '@' + short.athlete.toLowerCase().replace(/[^a-z]/g, ''),
+  verified: true,
+  avatar: ['💪', '🧠', '🔥'][i % 3],
+  caption: short.caption,
+  likes: Math.floor(Math.random() * 30 + 10) + 'K',
+  comments: Math.floor(Math.random() * 3 + 1) + 'K',
+  shares: Math.floor(Math.random() * 2000 + 500),
+  gradient: ['from-rose-900/40 via-dark-900 to-dark-950', 'from-blue-900/40 via-dark-900 to-dark-950', 'from-amber-900/40 via-dark-900 to-dark-950'][i % 3],
+  tag: short.tags[0],
+  duration: short.duration,
+}))
 
 export default function ShortsPage() {
   const [currentIndex, setCurrentIndex] = useState(0)
