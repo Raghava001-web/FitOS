@@ -4,14 +4,23 @@ import ExercisePage from './pages/ExercisePage'
 import ShortsPage from './pages/ShortsPage'
 import ProgressPage from './pages/ProgressPage'
 import ProfilePage from './pages/ProfilePage'
+import OnboardingPage from './pages/OnboardingPage'
 
 function AppContent() {
   const { state, setTab, completeOnboarding } = useApp()
   const tab = state.tab
 
-  // If hydrated but no profile somehow (shouldn't happen due to default), just show something
   if (!state.hydrated) {
     return <div className="h-full flex items-center justify-center bg-dark-950 text-white font-mono">Loading...</div>
+  }
+
+  // Show onboarding when no profile exists
+  if (!state.profile) {
+    return (
+      <div className="h-full flex flex-col bg-dark-950 max-w-[430px] mx-auto relative overflow-hidden">
+        <OnboardingPage onComplete={completeOnboarding} />
+      </div>
+    )
   }
 
   return (

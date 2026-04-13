@@ -179,18 +179,13 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           profile = JSON.parse(savedProfileStr) as UserProfile;
         }
 
-        // Auto-inject default profile on first run
-        if (!profile) {
-          profile = ROOKIE_PROFILE;
-          persistUserProfile(profile);
+        // If a saved profile exists, use it. Otherwise leave null for onboarding.
+        if (profile) {
           parsed.profile = profile;
-        } else {
-          parsed.profile = profile;
-        }
-
-        // Seed default habits if none exist (covers both first-run and legacy state)
-        if (!parsed.habits || parsed.habits.length === 0) {
-          parsed.habits = makeDefaultHabits(profile).map(normalizeHabit);
+          // Seed default habits if none exist
+          if (!parsed.habits || parsed.habits.length === 0) {
+            parsed.habits = makeDefaultHabits(profile).map(normalizeHabit);
+          }
         }
 
         setState(normalizeHydratedState(parsed));
