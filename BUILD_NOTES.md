@@ -9,10 +9,109 @@ FitOS is currently a local-first Expo + React Native MVP.
 
 That means:
 
-- It runs as a mobile app through Expo Go.
+- It runs as a mobile app through Expo Go for quick checks and through EAS/dev builds for real device QA.
 - It stores app state locally on-device using AsyncStorage.
 - It already has the major screens and core coaching logic.
-- It does not yet have a real backend, push notifications, or cloud sync.
+- It does not yet have real backend auth or cloud sync.
+- Native reminder and camera flows are wired, but still need development-build QA on an actual phone.
+
+## Source Of Truth
+
+The root project is the real mobile app.
+
+That means these files and folders are the main product path:
+
+- `App.tsx`
+- `app.json`
+- `package.json`
+- `src/`
+- `assets/`
+- `MOBILE_FEATURE_AUDIT.md`
+- `MOBILE_RELEASE_RUNBOOK.md`
+
+There is also a separate `web/` folder in this repo.
+
+Important:
+
+- `web/` is a side experiment / detour, not the main FitOS product
+- if your goal is Android and Expo, do not keep building new core features in `web/`
+- when in doubt, treat the root Expo app as the only source of truth
+
+## Current Mobile Direction
+
+The intended product direction is:
+
+- Android-first
+- Expo / React Native
+- local-first persistence with AsyncStorage
+- Expo Go for quick UI checks
+- development builds for more reliable notification and native-feature testing
+
+Expo Go is still useful, but not every native feature behaves perfectly there anymore.
+
+In particular:
+
+- `expo-notifications` can show limitations or warnings inside Expo Go
+- network tunnel stability can break loads on some phone setups
+- Private DNS on Android can interfere with Expo tunnel downloads
+
+So the practical rule is:
+
+- use Expo Go to move fast on screens and state
+- use a development build when testing reminders, camera, or anything that feels unreliable in Expo Go
+
+## Current Implementation Snapshot (May 2026)
+
+This section is the current source of truth for the app state today.
+Some of the older sections below describe earlier scaffolding decisions and are useful as history, but this snapshot should win if there is any conflict.
+
+### What is real right now
+
+- The root Expo app is the real product path
+- The main tabs are:
+  - Exercise
+  - Shorts
+  - Progress
+  - Profile
+- React Navigation is already in place
+- The core exercise memory system is real and persisted with AsyncStorage
+- Readiness, stress, progression logic, habits, food logging, profile editing, workout history, and recovery challenge flows are already implemented in the mobile app
+
+### Key mobile screens that exist now
+
+- `OnboardingScreen.tsx`
+- `ExerciseScreen.tsx`
+- `ExerciseDetailScreen.tsx`
+- `ReadinessScreen.tsx`
+- `WorkoutSummaryScreen.tsx`
+- `ProgressScreen.tsx`
+- `HabitScreen.tsx`
+- `RecoveryChallengeScreen.tsx`
+- `ProfileScreen.tsx`
+- `ShortsScreen.tsx`
+
+### Key implementation notes
+
+- `useExerciseMemory.ts` is the core differentiator and should be protected first
+- `ProgressScreen.tsx` is currently the strongest MVP home for habits, nutrition, and daily control surfaces
+- `ShortsScreen.tsx` is intentionally lightweight and should stay low priority until the core loop and Android reliability are solid
+- `expo-notifications` is wired, but real reminder confidence requires a development build and phone testing outside Expo Go
+- `expo-dev-client` is now installed so the Android development-build path is ready to use
+- Expo Doctor currently passes 17/17 checks
+- npm audit currently reports 0 vulnerabilities; patch-level transitive fixes are pinned with npm `overrides`
+- Android Metro export currently passes, so the app bundles successfully before cloud build
+- iOS Metro export currently passes, so the JavaScript bundle path is also clean for iPhone builds
+- EAS CLI is not currently available on PATH; install/login with `npm install -g eas-cli` and `eas login` before running build scripts
+
+### Recommended next order
+
+1. Validate the Android development build path
+2. Test reminders and native flows on a real phone outside Expo Go
+3. Consolidate habits so the feature has one clear MVP home
+4. Tighten copy and polish across the current screens
+5. Add supplements more fully into onboarding and nutrition
+6. Improve food logging UX
+7. Add backend only after the local Android loop feels dependable
 
 The current goal was not "production readiness."
 The goal was:
@@ -101,26 +200,29 @@ What it does:
 - Wraps everything in the shared app provider
 - Shows the onboarding flow if no profile exists
 - Shows the main tabbed experience if onboarding is complete
-- Displays the top readiness/status hero
+- Applies the phone light/dark theme to React Navigation
 
 Current approach:
 
-- Manual tab switching using local app state
+- React Navigation is the active navigation layer.
+- Bottom tabs are in `src/navigation/TabNavigator.tsx`.
+- Exercise and Progress use stack navigators for detail screens.
 
-Why I used this approach first:
+Why this approach is used now:
 
-- Faster than setting up React Navigation on day one
-- Lower setup friction while proving the app concept
-- Good enough to validate screen structure and business logic
+- It matches the shape of a real mobile app.
+- It supports detail routes like Exercise Detail, Readiness, Habits, and Recovery Challenge.
+- It keeps the app ready for future deep links and native navigation polish.
 
 What to likely do next:
 
-- Migrate to React Navigation after first-run bugs are known
+- Keep navigation stable while you test on Android.
+- Only add more routes when a feature truly needs a separate screen.
 
-Why migrate later:
+Why not overbuild it further yet:
 
-- Navigation libraries are worth it once the screens are stable
-- Right now proving the product logic was more important than navigation polish
+- Navigation already works.
+- The next bottleneck is device QA, not route architecture.
 
 ### 2. Global App State
 
@@ -421,14 +523,15 @@ Why:
 - Good enough for local proof-of-concept
 - Real auth should come after first-run UX is stable
 
-### 3. Real notifications
+### 3. Fully verified native notifications
 
-Reminder mode is captured in the onboarding model, but actual notification scheduling is not wired yet.
+Reminder mode is captured in onboarding, habits have multi-slot schedules, and `expo-notifications` scheduling is wired.
 
 Why:
 
-- Running and validating the core app mattered more first
-- Notification APIs are useful once the habit model is stable
+- Expo Go is not the final confidence layer for reminders.
+- Android notification permission, exact alarm behavior, and background timing need a development build.
+- This should be tested over a real day before you trust retention metrics.
 
 ### 4. Real shorts/video infrastructure
 
@@ -440,25 +543,26 @@ Why:
 - Video upload is infrastructure-heavy
 - It should be the last major feature
 
-## Why Navigation Was Kept Simple First
+## Why Navigation Is Now React Navigation
 
-The current app uses a state-driven tab system instead of React Navigation.
+The current app uses React Navigation.
 
-Why I made that choice:
+Current structure:
 
-- Fastest way to prove the app screens and logic
-- Fewer dependencies during first scaffold
-- Lower chance of getting blocked before the app even runs
+- Bottom tabs: Exercise, Shorts, Progress, Profile
+- Exercise stack: Exercise home, exercise detail, readiness, workout summary
+- Progress stack: Progress home, habits, recovery challenge
 
-Tradeoff:
+Why this is good for FitOS:
 
-- It is not as scalable or standard as React Navigation
-- Deep linking and navigation stacks are not there yet
+- The app now behaves like a real downloadable mobile app.
+- It can grow into deep links, notifications opening specific screens, and profile/history detail pages.
+- It keeps tab-level surfaces simple while still allowing drill-down flows.
 
 Recommendation:
 
-Once you have your first 3 runtime bugs written down from real phone testing, move to React Navigation.
-Do that after the app’s first-run flow is known, not before.
+Do not rewrite navigation again right now.
+Stabilize Android builds, notifications, camera, and the core memory loop first.
 
 ## Why the Current Weight Memory Approach Is Valid
 
@@ -550,21 +654,17 @@ If you are vibe-coding and need to know where to jump in, use this map:
 
 These are not bugs by default, but they are unfinished areas:
 
-- No React Navigation yet
 - No form validation library yet
 - No real backend auth
 - No cloud sync
-- No real push notification scheduling
+- Native notifications need development-build QA
 - No real media upload stack
-- No live food database
+- Food search is live, but the meal-builder UX is still basic
 - No tests yet
 
-Also, Expo currently warns about version mismatch on:
+Also, run `npm run typecheck` after UI changes and use a development build before trusting camera or reminder behavior.
 
-- `@react-native-async-storage/async-storage`
-- `react-native`
 
-Those should be aligned with Expo’s expected versions soon.
 
 ## Recommended Next Build Order
 
@@ -573,10 +673,10 @@ This is the most sensible next sequence from here:
 1. Run the app on the phone
 2. Write down the first 3 real runtime/UI breaks
 3. Fix those before adding new features
-4. Migrate tabs/onboarding flow to React Navigation
-5. Tighten onboarding validation
-6. Strengthen weight memory UX
-7. Add habit reminders with `expo-notifications`
+4. Validate an Android development build
+5. Test reminders and camera/barcode flows on a real phone
+6. Tighten onboarding validation
+7. Strengthen weight memory UX with more coach-style explanations
 8. Add backend only after the local loop is stable
 
 ## If You Want To Keep Vibe-Coding Safely

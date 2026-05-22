@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { PrimaryButton, SectionCard } from "../components/ui";
+import { PrimaryButton, ScreenHero, SectionCard } from "../components/ui";
 import { SHORTS_FEED } from "../data/mockContent";
 import { radius, shadows, spacing } from "../theme";
 import { useApp } from "../store/AppContext";
@@ -31,11 +31,15 @@ export const ShortsScreen = () => {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <View style={styles.pageHeader}>
-        <Text style={styles.pageEyebrow}>Community lane</Text>
-        <Text style={styles.pageTitle}>Shorts</Text>
-        <Text style={styles.pageSubtitle}>Progress sharing stays lightweight, so training still owns the app.</Text>
-      </View>
+      <ScreenHero
+        eyebrow="Community lane"
+        title="Shorts"
+        subtitle="A secondary progress feed for clips and ideas. Training stays the center of FitOS."
+        metric={`${feed.length}`}
+        metricLabel="clips"
+        accent={palette.gold}
+        icon="play-circle-outline"
+      />
 
       <SectionCard
         title="Shorts feed"
@@ -72,7 +76,7 @@ export const ShortsScreen = () => {
             </View>
             <Text style={styles.title}>{short.title}</Text>
             <Text style={styles.caption}>{short.caption}</Text>
-            <Text style={styles.tags}>{short.tags.join(" • ")}</Text>
+            <Text style={styles.tags}>{short.tags.join(" - ")}</Text>
           </View>
         ))}
       </SectionCard>
@@ -239,4 +243,5 @@ const createStyles = (palette: ReturnType<typeof useApp>["palette"]) =>
       color: palette.textMuted
     }
   });
+
 

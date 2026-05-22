@@ -23,7 +23,7 @@ const categoryColors = {
 }
 
 export default function ProgressPage() {
-  const { state, dietPlan, completeHabitSlot, logFood, drawChallenge, completeChallenge } = useApp()
+  const { state, dietPlan, metrics, completeHabitSlot, logFood, drawChallenge, completeChallenge } = useApp()
   const [foodSearchOpen, setFoodSearchOpen] = useState(false)
   const [foodQuery, setFoodQuery] = useState('')
 
@@ -100,6 +100,32 @@ export default function ProgressPage() {
             <Target size={18} className="text-recovery mx-auto mb-1.5" />
             <p className="text-xl font-bold text-white">{todayTotals.protein}g</p>
             <p className="text-[10px] text-white/40">protein</p>
+          </div>
+        </div>
+      </GlassCard>
+
+      {/* Weekly Summary */}
+      <GlassCard>
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-1 h-8 rounded-full bg-gradient-to-b from-cyan-400 to-cyan-700" />
+          <h3 className="text-base font-semibold text-white">Weekly Review</h3>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          <div className="p-2.5 rounded-xl bg-white/[0.04] flex flex-col items-center justify-center">
+            <span className="text-xl font-bold text-white leading-none mb-1">{state.workoutLogs.filter(l => new Date(l.date) > new Date(Date.now() - 7*24*60*60*1000)).length}</span>
+            <span className="text-[9px] text-white/50 text-center uppercase tracking-wider">Workouts</span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-white/[0.04] flex flex-col items-center justify-center">
+            <span className="text-xl font-bold text-white leading-none mb-1">{metrics.totalSetsWeek}</span>
+            <span className="text-[9px] text-white/50 text-center uppercase tracking-wider">Sets</span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-white/[0.04] flex flex-col items-center justify-center">
+            <span className="text-xl font-bold text-white leading-none mb-1">{Math.round(metrics.totalWeightLiftedWeek / 1000)}k</span>
+            <span className="text-[9px] text-white/50 text-center uppercase tracking-wider">Volume</span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-cyan-400/10 border border-cyan-400/20 flex flex-col items-center justify-center">
+            <span className="text-xl font-bold text-cyan-400 leading-none mb-1">{metrics.readinessScore}</span>
+            <span className="text-[9px] text-cyan-400/60 text-center uppercase tracking-wider">Readiness</span>
           </div>
         </div>
       </GlassCard>

@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useMemo, useState } from "react";
+import { ActivityIndicator, Modal, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { BodyAnalysisSheet } from "../components/BodyAnalysisSheet";
-import { GhostButton, KeyStat, LabeledInput, MiniStat, OptionChip, PrimaryButton, SectionCard } from "../components/ui";
+import { GhostButton, KeyStat, LabeledInput, MiniStat, OptionChip, PrimaryButton, ScreenHero, SectionCard } from "../components/ui";
 import { formatShortDate } from "../engine/fitness";
 import { EXERCISES } from "../data/exercises";
 import { getMonthlySummary, getWeeklySummary } from "../engine/habits";
@@ -45,6 +46,8 @@ export const ProfileScreen = () => {
       exerciseName: string;
       weight: number;
       reps: number;
+      setCount: number;
+      setsText: string;
       date: string;
       key: string;
     }>
@@ -81,7 +84,7 @@ export const ProfileScreen = () => {
     [historyRows, selectedHistoryExerciseName]
   );
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     let cancelled = false;
 
     const loadHistory = async () => {
@@ -91,14 +94,30 @@ export const ProfileScreen = () => {
         const loaded = await Promise.all(
           EXERCISES.map(async (exercise) => {
             const entries = await readExerciseMemory(exercise.name);
-            return entries.map((entry) => ({
+            const sessions = new Map<string, typeof entries>();
+            entries.forEach((entry) => {
+              if (!sessions.has(entry.date)) sessions.set(entry.date, []);
+              sessions.get(entry.date)!.push(entry);
+            });
+
+            return [...sessions.entries()].map(([date, sessionEntries]) => {
+              const topSet = sessionEntries.reduce((best, entry) => {
+                if (entry.weight > best.weight) return entry;
+                if (entry.weight === best.weight && entry.reps > best.reps) return entry;
+                return best;
+              }, sessionEntries[0]);
+
+              return {
               exerciseId: exercise.id,
               exerciseName: exercise.name,
-              weight: entry.weight,
-              reps: entry.reps,
-              date: entry.date,
-              key: `${exercise.id}-${entry.date}-${entry.weight}-${entry.reps}`
-            }));
+              weight: topSet.weight,
+              reps: topSet.reps,
+              setCount: sessionEntries.length,
+              setsText: sessionEntries.map((entry) => `${entry.weight} kg x ${entry.reps}`).join(" / "),
+              date,
+              key: `${exercise.id}-${date}`
+              };
+            });
           })
         );
 
@@ -123,7 +142,7 @@ export const ProfileScreen = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [state.workoutLogs.length]));
 
   const openEditProfile = () => {
     if (!profile) return;
@@ -179,14 +198,37 @@ export const ProfileScreen = () => {
     setIsEditOpen(false);
   };
 
+  const handleShareProgress = async () => {
+    if (!profile || !metrics) return;
+
+    const message = [
+      "FitOS Progress Card",
+      `${profile.name} - ${profile.primaryGoal}`,
+      `Rank: ${rank}`,
+      `Readiness: ${metrics.readinessScore}/100`,
+      `BMI: ${metrics.bmi} (${metrics.bmiLabel})`,
+      `Current streak: ${state.dailyStreak.current} days`,
+      `This week: ${weekly.sessions} sessions, ${weekly.volume} kg lifted`
+    ].join("\n");
+
+    try {
+      await Share.share({ title: "FitOS Progress Card", message });
+      setProfileNote("Progress card opened in the Android share sheet.");
+    } catch {
+      setProfileNote("Share sheet could not be opened right now.");
+    }
+  };
+
   if (!profile || !metrics) {
     return (
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-        <View style={styles.pageHeader}>
-          <Text style={styles.pageEyebrow}>Identity and reports</Text>
-          <Text style={styles.pageTitle}>Profile</Text>
-          <Text style={styles.pageSubtitle}>Body stats, plan state, fuel, and history stay organized in one lane.</Text>
-        </View>
+        <ScreenHero
+          eyebrow="Identity and reports"
+          title="Profile"
+          subtitle="Finish onboarding to unlock body stats, reports, goals, and your training memory."
+          accent={palette.blue}
+          icon="person-circle-outline"
+        />
         <SectionCard title="Profile" subtitle="Complete onboarding to unlock the profile view.">
           <Text style={styles.copy}>No profile data yet.</Text>
         </SectionCard>
@@ -199,11 +241,15 @@ export const ProfileScreen = () => {
   return (
     <>
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-        <View style={styles.pageHeader}>
-          <Text style={styles.pageEyebrow}>Identity and reports</Text>
-          <Text style={styles.pageTitle}>Profile</Text>
-          <Text style={styles.pageSubtitle}>Body stats, plan state, fuel, and history stay organized in one lane.</Text>
-        </View>
+        <ScreenHero
+          eyebrow="Identity and reports"
+          title="Profile"
+          subtitle="Body, fuel, plans, history, and shareable progress live here without stealing focus from training."
+          metric={rank}
+          metricLabel="rank"
+          accent={palette.blue}
+          icon="person-circle-outline"
+        />
 
         <SectionCard
           title="Profile board"
@@ -323,7 +369,14 @@ export const ProfileScreen = () => {
             ) : null}
             <View style={styles.panel}>
               <Text style={styles.cardTitle}>Supplement tracker</Text>
-              <Text style={styles.copy}>{supplementPlan.join(" - ") || "No supplement recommendation yet."}</Text>
+              <Text style={styles.copy}>
+                {profile.supplementNames.length > 0
+                  ? `Logged stack: ${profile.supplementNames.join(" - ")}`
+                  : supplementPlan.join(" - ") || "No supplement recommendation yet."}
+              </Text>
+              {profile.supplementNames.length > 0 && supplementPlan.length > 0 ? (
+                <Text style={styles.copy}>Recommended support: {supplementPlan.join(" - ")}</Text>
+              ) : null}
             </View>
           </SectionCard>
         ) : null}
@@ -341,6 +394,7 @@ export const ProfileScreen = () => {
               <Text style={styles.shareStats}>Rank {rank} - {weekly.sessions} sessions this week - {metrics.consistencyRank} consistency</Text>
               <Text style={styles.shareStats}>Current goal: {profile.primaryGoal}</Text>
             </View>
+            <PrimaryButton label="Share progress card" onPress={handleShareProgress} />
           </SectionCard>
         ) : null}
 
@@ -376,7 +430,9 @@ export const ProfileScreen = () => {
                           >
                             <View style={styles.historyRowMain}>
                               <Text style={styles.historyExercise}>{log.exerciseName}</Text>
-                              <Text style={styles.historyMeta}>{log.weight} kg x {log.reps}</Text>
+                              <Text style={styles.historyMeta}>
+                                {log.setCount} {log.setCount === 1 ? "set" : "sets"} - {log.setsText}
+                              </Text>
                             </View>
                             <Text style={styles.historyChevron}>View</Text>
                           </Pressable>
@@ -395,7 +451,9 @@ export const ProfileScreen = () => {
                 {selectedHistoryLogs.map((entry) => (
                   <View key={entry.key} style={styles.historySession}>
                     <Text style={styles.historySessionTitle}>{formatShortDate(entry.date)}</Text>
-                    <Text style={styles.historySessionLine}>{entry.weight} kg x {entry.reps}</Text>
+                    <Text style={styles.historySessionLine}>
+                      {entry.setCount} {entry.setCount === 1 ? "set" : "sets"} - {entry.setsText}
+                    </Text>
                   </View>
                 ))}
               </View>

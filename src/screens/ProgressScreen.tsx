@@ -1,13 +1,17 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
 import { HabitHeatmap } from "../components/HabitHeatmap";
-import { GhostButton, LabeledInput, MetricPill, MiniStat, OptionChip, PrimaryButton, SectionCard } from "../components/ui";
+import { GhostButton, LabeledInput, MetricPill, MiniStat, OptionChip, PrimaryButton, ScreenHero, SectionCard } from "../components/ui";
 import { generateProgressBotMessage, getMonthlySummary, getWeeklySummary, getWorkoutPR, normalizeHabitForToday } from "../engine/habits";
+import type { ProgressStackParamList } from "../navigation/types";
 import { useApp } from "../store/AppContext";
 import { radius, shadows, spacing } from "../theme";
 import { FoodItem, HabitCategory } from "../types";
 
 type ProgressMode = "today" | "nutrition" | "habits";
+type Props = NativeStackScreenProps<ProgressStackParamList, "ProgressHome">;
 
 type FoodSearchResult = {
   id: string;
@@ -68,7 +72,15 @@ const normalizeFoodProduct = (product: unknown, index: number): FoodSearchResult
   };
 };
 
-export const ProgressScreen = () => {
+const normalizeBarcodeProduct = (payload: unknown, barcode: string): FoodSearchResult | null => {
+  if (!payload || typeof payload !== "object") return null;
+  const candidate = payload as { status?: unknown; product?: unknown };
+  if (candidate.status !== 1 && candidate.status !== "1" && !candidate.product) return null;
+  const normalized = normalizeFoodProduct(candidate.product, 0);
+  return normalized ? { ...normalized, id: `barcode-${barcode}-${normalized.id}` } : null;
+};
+
+export const ProgressScreen = ({ navigation }: Props) => {
   const { state, metrics, dietPlan, rank, completeHabitSlot, addHabit, drawChallenge, completeChallenge, logFood, palette } = useApp();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const profile = state.profile;
@@ -77,6 +89,11 @@ export const ProgressScreen = () => {
   const [foodResults, setFoodResults] = useState<FoodSearchResult[]>([]);
   const [foodLoading, setFoodLoading] = useState(false);
   const [foodError, setFoodError] = useState("");
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [barcodeLoading, setBarcodeLoading] = useState(false);
+  const [lastBarcode, setLastBarcode] = useState("");
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const scanLockRef = useRef(false);
   const [habitName, setHabitName] = useState("");
   const [habitSlots, setHabitSlots] = useState("07:00, 22:00");
   const [habitCategory, setHabitCategory] = useState<HabitCategory>("Recovery");
@@ -126,7 +143,7 @@ export const ProgressScreen = () => {
 
         try {
           const response = await fetch(
-            `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&json=1&page_size=8&fields=product_name,nutriments`
+            `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&json=1&page_size=10&lc=en&tagtype_0=countries&tag_contains_0=contains&tag_0=india&fields=product_name,nutriments`
           );
 
           if (!response.ok) {
@@ -184,6 +201,65 @@ export const ProgressScreen = () => {
     });
   };
 
+  const handleStartBarcodeScanner = async () => {
+    if (barcodeLoading) return;
+    if (!cameraPermission?.granted) {
+      const result = await requestCameraPermission();
+      if (!result.granted) {
+        setFoodError("Camera permission is needed to scan food barcodes.");
+        return;
+      }
+    }
+
+    scanLockRef.current = false;
+    setFoodError("");
+    setScannerOpen(true);
+    setMode("nutrition");
+  };
+
+  const handleLookupBarcode = async (barcode: string) => {
+    setBarcodeLoading(true);
+    setFoodError("");
+    setLastBarcode(barcode);
+
+    try {
+      const response = await fetch(
+        `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json?fields=product_name,nutriments`
+      );
+
+      if (!response.ok) {
+        throw new Error(`Barcode lookup failed with ${response.status}`);
+      }
+
+      const payload = await response.json();
+      const product = normalizeBarcodeProduct(payload, barcode);
+
+      if (!product) {
+        setFoodError(`No Open Food Facts product found for barcode ${barcode}.`);
+        return;
+      }
+
+      setFoodQuery(product.name);
+      setFoodResults([product]);
+      handleSelectFoodResult(product);
+      setActionNote(`Scanned and logged ${product.name}.`);
+      setScannerOpen(false);
+    } catch {
+      setFoodError("Barcode lookup is unavailable right now. Try manual search.");
+    } finally {
+      scanLockRef.current = false;
+      setBarcodeLoading(false);
+    }
+  };
+
+  const handleBarcodeScanned = (result: BarcodeScanningResult) => {
+    if (!scannerOpen || scanLockRef.current || barcodeLoading) return;
+    const barcode = result.data?.trim();
+    if (!barcode) return;
+    scanLockRef.current = true;
+    void handleLookupBarcode(barcode);
+  };
+
   const handleCompleteHabitSlot = (habitId: string, slot: string, habitNameLabel: string) => {
     completeHabitSlot(habitId, slot);
     setTrackedHabitId(habitId);
@@ -230,6 +306,12 @@ export const ProgressScreen = () => {
     drawChallenge();
     setActionNote("A new streak recovery challenge is ready.");
     setMode("habits");
+    navigation.push("RecoveryChallenge", {});
+  };
+
+  const handleOpenChallenge = () => {
+    setActionNote("Recovery challenge opened.");
+    navigation.push("RecoveryChallenge", {});
   };
 
   const handleCompleteChallenge = () => {
@@ -240,11 +322,15 @@ export const ProgressScreen = () => {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <View style={styles.pageHeader}>
-        <Text style={styles.pageEyebrow}>Daily command center</Text>
-        <Text style={styles.pageTitle}>Progress</Text>
-        <Text style={styles.pageSubtitle}>Daily numbers first, deeper nutrition and habit control one tap below.</Text>
-      </View>
+      <ScreenHero
+        eyebrow="Daily command center"
+        title="Progress"
+        subtitle="A live board for macros, habits, streak pressure, and the coach note that tells you what changed today."
+        metric={`${todaysTotals.protein}`}
+        metricLabel="protein"
+        accent={palette.lime}
+        icon="stats-chart-outline"
+      />
 
       <SectionCard
         title="Progress board"
@@ -353,6 +439,45 @@ export const ProgressScreen = () => {
             onChangeText={setFoodQuery}
             placeholder="Chicken, paneer, yogurt..."
           />
+
+          <View style={styles.actionRow}>
+            <View style={styles.actionItem}>
+              <PrimaryButton
+                label={barcodeLoading ? "Looking up..." : scannerOpen ? "Scanner active" : "Scan barcode"}
+                onPress={handleStartBarcodeScanner}
+              />
+            </View>
+            {scannerOpen ? (
+              <View style={styles.actionItem}>
+                <GhostButton
+                  label="Close scanner"
+                  onPress={() => {
+                    scanLockRef.current = false;
+                    setScannerOpen(false);
+                  }}
+                />
+              </View>
+            ) : null}
+          </View>
+
+          {scannerOpen ? (
+            <View style={styles.scannerShell}>
+              <CameraView
+                style={styles.scannerCamera}
+                facing="back"
+                onBarcodeScanned={handleBarcodeScanned}
+                barcodeScannerSettings={{ barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e"] }}
+              />
+              <View pointerEvents="none" style={styles.scannerOverlay}>
+                <View style={styles.scannerFrame} />
+                <Text style={styles.scannerHint}>
+                  {barcodeLoading ? "Looking up product..." : "Place the food barcode inside the frame"}
+                </Text>
+              </View>
+            </View>
+          ) : null}
+
+          {lastBarcode ? <Text style={styles.copy}>Last scanned barcode: {lastBarcode}</Text> : null}
 
           {foodLoading ? (
             <View style={styles.searchState}>
@@ -481,7 +606,14 @@ export const ProgressScreen = () => {
                 <Text style={styles.challengeTitle}>{state.activeChallenge.title}</Text>
                 <Text style={styles.copy}>{state.activeChallenge.description}</Text>
                 <Text style={styles.copy}>Badge reward: {state.activeChallenge.rewardBadge}</Text>
-                <PrimaryButton label="Mark challenge complete" onPress={handleCompleteChallenge} tone={palette.orange} />
+                <View style={styles.actionRow}>
+                  <View style={styles.actionItem}>
+                    <PrimaryButton label="Open challenge" onPress={handleOpenChallenge} tone={palette.orange} />
+                  </View>
+                  <View style={styles.actionItem}>
+                    <GhostButton label="Mark complete here" onPress={handleCompleteChallenge} />
+                  </View>
+                </View>
               </View>
             ) : (
               <PrimaryButton label="Draw random challenge" onPress={handleDrawChallenge} tone={palette.orange} />
@@ -593,6 +725,43 @@ const createStyles = (palette: ReturnType<typeof useApp>["palette"]) =>
       alignItems: "center",
       gap: spacing.sm,
       paddingVertical: 6
+    },
+    scannerShell: {
+      height: 320,
+      overflow: "hidden",
+      borderRadius: radius.md,
+      backgroundColor: "#000",
+      borderWidth: 1,
+      borderColor: palette.line
+    },
+    scannerCamera: {
+      ...StyleSheet.absoluteFillObject
+    },
+    scannerOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: "center",
+      justifyContent: "center",
+      padding: spacing.md
+    },
+    scannerFrame: {
+      width: "78%",
+      aspectRatio: 1.55,
+      borderWidth: 2,
+      borderRadius: radius.md,
+      borderColor: palette.orange,
+      backgroundColor: "transparent"
+    },
+    scannerHint: {
+      position: "absolute",
+      bottom: spacing.md,
+      left: spacing.md,
+      right: spacing.md,
+      color: "#fff",
+      textAlign: "center",
+      fontWeight: "700",
+      backgroundColor: "rgba(0, 0, 0, 0.58)",
+      borderRadius: radius.sm,
+      padding: spacing.sm
     },
     foodList: {
       gap: spacing.sm

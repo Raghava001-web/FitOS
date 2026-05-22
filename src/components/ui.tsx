@@ -1,7 +1,66 @@
-﻿import React, { useMemo } from "react";
+import React, { useMemo } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "../store/AppContext";
 import { radius, shadows, spacing } from "../theme";
+
+type IconName = React.ComponentProps<typeof Ionicons>["name"];
+
+export const ScreenHero = ({
+  eyebrow,
+  title,
+  subtitle,
+  metric,
+  metricLabel,
+  accent,
+  icon = "sparkles-outline",
+}: {
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  metric?: string;
+  metricLabel?: string;
+  accent?: string;
+  icon?: IconName;
+}) => {
+  const { palette } = useApp();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  const heroAccent = accent ?? palette.orange;
+
+  return (
+    <View style={styles.heroShell}>
+      <View style={[styles.heroBlade, { backgroundColor: heroAccent }]} />
+      <View style={styles.heroTopRow}>
+        <View style={[styles.heroIcon, { backgroundColor: `${heroAccent}1F` }]}>
+          <Ionicons name={icon} size={22} color={heroAccent} />
+        </View>
+        <View style={styles.heroTextWrap}>
+          <Text style={styles.heroEyebrow}>{eyebrow}</Text>
+          <Text style={styles.heroTitle} numberOfLines={2}>{title}</Text>
+        </View>
+        {metric ? (
+          <View style={styles.heroMetric}>
+            <Text
+              style={[styles.heroMetricValue, { color: heroAccent }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.52}
+            >
+              {metric}
+            </Text>
+            {metricLabel ? <Text style={styles.heroMetricLabel}>{metricLabel}</Text> : null}
+          </View>
+        ) : null}
+      </View>
+      <Text style={styles.heroSubtitle}>{subtitle}</Text>
+      <View style={styles.heroSignalRow}>
+        <View style={[styles.heroSignalLong, { backgroundColor: heroAccent }]} />
+        <View style={[styles.heroSignalShort, { backgroundColor: palette.teal }]} />
+        <View style={[styles.heroSignalShort, { backgroundColor: palette.lime }]} />
+      </View>
+    </View>
+  );
+};
 
 export const SectionCard = ({
   title,
@@ -19,7 +78,8 @@ export const SectionCard = ({
 
   return (
     <View style={styles.card}>
-      <View pointerEvents="none" style={[styles.cardGlow, accent ? { backgroundColor: `${accent}14` } : null]} />
+      <View pointerEvents="none" style={[styles.cardTopBlade, accent ? { backgroundColor: accent } : null]} />
+      <View pointerEvents="none" style={[styles.cardSideBlade, accent ? { backgroundColor: `${accent}66` } : null]} />
       <View style={styles.cardHeader}>
         <View style={styles.cardTitleRow}>
           <View style={[styles.cardAccent, accent ? { backgroundColor: accent } : { backgroundColor: palette.orange }]} />
@@ -233,18 +293,117 @@ const createStyles = (palette: ReturnType<typeof useApp>["palette"]) =>
       borderRadius: radius.lg,
       padding: spacing.lg,
       gap: spacing.md,
-      borderWidth: 1,
-      borderColor: palette.line,
       ...shadows.card
     },
-    cardGlow: {
+    heroShell: {
+      position: "relative",
+      overflow: "hidden",
+      backgroundColor: palette.panel,
+      borderRadius: 24,
+      padding: spacing.lg,
+      gap: spacing.md,
+      borderWidth: 1,
+      borderColor: palette.line,
+      ...shadows.hero
+    },
+    heroBlade: {
       position: "absolute",
-      top: -36,
-      right: -24,
-      width: 132,
-      height: 132,
+      top: 0,
+      left: 0,
+      right: 0,
+      height: 5
+    },
+    heroTopRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.md
+    },
+    heroIcon: {
+      width: 48,
+      height: 48,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center"
+    },
+    heroTextWrap: {
+      flex: 1,
+      gap: 2
+    },
+    heroEyebrow: {
+      color: palette.textMuted,
+      fontSize: 11,
+      fontWeight: "800",
+      letterSpacing: 2,
+      textTransform: "uppercase"
+    },
+    heroTitle: {
+      color: palette.text,
+      fontSize: 34,
+      lineHeight: 38,
+      fontWeight: "900"
+    },
+    heroMetric: {
+      minWidth: 74,
+      maxWidth: 118,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.sm,
+      borderRadius: 16,
+      backgroundColor: palette.panelAlt,
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: palette.line
+    },
+    heroMetricValue: {
+      fontSize: 30,
+      lineHeight: 34,
+      fontWeight: "900"
+    },
+    heroMetricLabel: {
+      color: palette.textMuted,
+      fontSize: 10,
+      fontWeight: "800",
+      letterSpacing: 1.4,
+      textTransform: "uppercase"
+    },
+    heroSubtitle: {
+      color: palette.textMuted,
+      fontSize: 15,
+      lineHeight: 24
+    },
+    heroSignalRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8
+    },
+    heroSignalLong: {
+      height: 4,
+      width: 86,
+      borderRadius: 999
+    },
+    heroSignalShort: {
+      height: 4,
+      width: 26,
       borderRadius: 999,
-      opacity: 0.75
+      opacity: 0.72
+    },
+    cardTopBlade: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      height: 3,
+      backgroundColor: palette.orange,
+      opacity: 0.9
+    },
+    cardSideBlade: {
+      position: "absolute",
+      top: 18,
+      right: -28,
+      width: 92,
+      height: 12,
+      borderRadius: 999,
+      transform: [{ rotate: "28deg" }],
+      backgroundColor: `${palette.orange}66`
     },
     cardHeader: {
       gap: 6
@@ -278,8 +437,6 @@ const createStyles = (palette: ReturnType<typeof useApp>["palette"]) =>
       backgroundColor: palette.panelAlt,
       padding: spacing.lg,
       gap: 8,
-      borderWidth: 1,
-      borderColor: palette.line,
       ...shadows.card
     },
     keyStatLabel: {
@@ -322,8 +479,6 @@ const createStyles = (palette: ReturnType<typeof useApp>["palette"]) =>
       backgroundColor: palette.panelAlt,
       padding: spacing.md,
       gap: 6,
-      borderWidth: 1,
-      borderColor: palette.line,
       ...shadows.card
     },
     metricHeader: {
@@ -353,8 +508,6 @@ const createStyles = (palette: ReturnType<typeof useApp>["palette"]) =>
       borderRadius: radius.lg,
       padding: spacing.md,
       gap: 6,
-      borderWidth: 1,
-      borderColor: palette.line,
       ...shadows.card
     },
     miniLabel: {
@@ -373,9 +526,9 @@ const createStyles = (palette: ReturnType<typeof useApp>["palette"]) =>
       paddingHorizontal: 14,
       paddingVertical: 10,
       borderRadius: radius.pill,
+      backgroundColor: palette.panelAlt,
       borderWidth: 1,
-      borderColor: palette.line,
-      backgroundColor: palette.panelAlt
+      borderColor: palette.line
     },
     chipSelected: {
       borderColor: `${palette.orange}55`,
@@ -407,8 +560,6 @@ const createStyles = (palette: ReturnType<typeof useApp>["palette"]) =>
       backgroundColor: palette.inputSurface,
       color: palette.text,
       borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: palette.line,
       paddingHorizontal: 14,
       paddingVertical: 14,
       fontSize: 15,
@@ -441,8 +592,6 @@ const createStyles = (palette: ReturnType<typeof useApp>["palette"]) =>
       width: "100%",
       paddingHorizontal: 18,
       borderRadius: 14,
-      borderWidth: 1,
-      borderColor: palette.line,
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: palette.panelAlt

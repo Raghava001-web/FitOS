@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { ChevronLeft, Flame, Info, CheckCircle2, Rewind } from 'lucide-react';
 import { useApp } from '../store/AppContext';
 import { getExerciseById, getExerciseLogs, recommendProgression, getHistoricBestSet, getTopSet, calculateTotalVolume, formatShortDate } from '../engine/fitness';
+import { createId } from '../engine/reminders'; // assuming a util exists or use crypto.randomUUID
+
 
 export default function ExerciseDetails({ exerciseId, onBack }) {
   const { state, metrics, logWorkout } = useApp();
@@ -18,12 +20,34 @@ export default function ExerciseDetails({ exerciseId, onBack }) {
   const prSet = getHistoricBestSet(state.workoutLogs, exerciseId);
 
   const defaultReps = lastTopSet ? lastTopSet.reps : parseInt(exercise.defaultRepRange.split('-')[0]) || 10;
-  const defaultWeight = progression.recommendedWeightKg || 0;
+  const defaultWeight = lastTopSet ? lastTopSet.weightKg : progression.recommendedWeightKg || 0;
+  const defaultSets = lastLog ? lastLog.sets.length : 3;
 
-  const [inputSets, setInputSets] = useState(3);
+  const [inputSets, setInputSets] = useState(defaultSets);
   const [inputReps, setInputReps] = useState(defaultReps);
   const [inputWeight, setInputWeight] = useState(defaultWeight);
+  const [feedback, setFeedback] = useState(null);
   const [saved, setSaved] = useState(false);
+
+  const processFeedback = (loggedSets) => {
+    const vol = loggedSets.reduce((acc, set) => acc + (set.weightKg * set.reps), 0);
+    const lastVol = lastLog ? calculateTotalVolume(lastLog) : 0;
+    const isPr = prSet ? loggedSets.some(s => s.weightKg > prSet.weightKg || (s.weightKg === prSet.weightKg && s.reps > prSet.reps)) : true;
+    
+    let regressionReason = null;
+    if (lastVol > 0 && vol < lastVol) {
+      if (profile.sleepHours < 7) regressionReason = `Volume drop: Low sleep detected (${profile.sleepHours}h). Prioritize recovery tonight.`;
+      else if (metrics.stressScore > 65) regressionReason = "Volume drop: High stress levels are capping your physical capacity.";
+      else if (profile.recoveryConsistency === 'poor') regressionReason = "Volume drop: Inconsistent recovery pattern. Focus on habits.";
+      else regressionReason = "Volume dropped slightly. Keep monitoring readiness.";
+    }
+
+    setFeedback({
+      volumeDelta: lastVol === 0 ? `+${vol}kg` : `${vol >= lastVol ? '+' : ''}${vol - lastVol}kg`,
+      isPr,
+      regressionReason
+    });
+  };
 
   const handleSave = () => {
     const sets = Array.from({ length: inputSets }).map((_, i) => ({
@@ -41,8 +65,19 @@ export default function ExerciseDetails({ exerciseId, onBack }) {
       date: new Date().toISOString()
     });
 
-    setSaved(true);
-    setTimeout(() => onBack(), 800);
+    processFeedback(sets);
+  };
+
+  const handleRepeatLast = () => {
+    if (!lastLog) return;
+    const sets = lastLog.sets.map(s => ({ ...s, durationSeconds: 0 }));
+    logWorkout({
+      exerciseId,
+      exerciseName: exercise.name,
+      sets,
+      date: new Date().toISOString()
+    });
+    processFeedback(sets);
   };
 
   const actionColor =
@@ -64,7 +99,41 @@ export default function ExerciseDetails({ exerciseId, onBack }) {
         <span className="text-xs font-semibold text-energy tracking-widest uppercase">{exercise.category}</span>
       </div>
 
-      {/* Title */}
+      {feedback ? (
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-3xl p-6 text-center animate-[scaleIn_0.4s_ease-out]">
+          <div className="w-16 h-16 rounded-full bg-cyan-400/20 text-cyan-400 mx-auto flex items-center justify-center mb-4">
+            <CheckCircle2 size={32} />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-1">Session Logged</h2>
+          <p className="text-sm text-white/50 mb-6">Your engine is updated.</p>
+          
+          <div className="space-y-3 mb-6 relative">
+            <div className="p-3 bg-white/[0.04] rounded-xl flex items-center justify-between text-left">
+              <span className="text-xs text-white/50 uppercase tracking-widest">Volume Delta</span>
+              <span className={`font-bold ${feedback.volumeDelta.startsWith('+') ? 'text-green-400' : 'text-red-400'}`}>
+                {feedback.volumeDelta}
+              </span>
+            </div>
+            {feedback.isPr && (
+              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center justify-between text-left">
+                <span className="text-xs text-amber-500 uppercase tracking-widest">New Record</span>
+                <Flame size={16} className="text-amber-500" />
+              </div>
+            )}
+            {feedback.regressionReason && (
+              <div className="p-3 bg-red-500/5 border border-red-500/10 rounded-xl text-left">
+                <p className="text-xs text-red-400 font-medium leading-relaxed">{feedback.regressionReason}</p>
+              </div>
+            )}
+          </div>
+
+          <button onClick={onBack} className="w-full py-3.5 bg-white/[0.06] hover:bg-white/[0.1] text-white rounded-xl transition-all font-semibold">
+            Done
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* Title */}
       <div>
         <h1 className="text-2xl font-bold text-white">{exercise.name}</h1>
         <p className="text-xs text-white/40 mt-1">
@@ -150,14 +219,25 @@ export default function ExerciseDetails({ exerciseId, onBack }) {
           ))}
         </div>
 
-        <button
-          onClick={handleSave}
-          disabled={saved}
-          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-cyan-400 text-gray-900 font-bold text-sm transition-all hover:bg-cyan-300 active:scale-[0.98] disabled:opacity-70"
-        >
-          <CheckCircle2 size={18} />
-          {saved ? 'Saved!' : 'Save Session'}
-        </button>
+        <div className="flex flex-col gap-2.5 mt-2">
+          <button
+            onClick={handleSave}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-cyan-400 text-gray-900 font-bold text-sm transition-all hover:bg-cyan-300 active:scale-[0.98]"
+          >
+            <CheckCircle2 size={18} />
+            Save Session
+          </button>
+          
+          {lastLog && (
+            <button
+              onClick={handleRepeatLast}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-white/[0.06] border border-white/[0.1] text-white font-bold text-sm transition-all hover:bg-white/[0.12] active:scale-[0.98]"
+            >
+              <Rewind size={16} />
+              Repeat Last ({lastLog.sets.length}x{lastTopSet.reps} @ {lastTopSet.weightKg}kg)
+            </button>
+          )}
+        </div>
       </div>
 
       {/* History */}
@@ -210,6 +290,8 @@ export default function ExerciseDetails({ exerciseId, onBack }) {
           </a>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }

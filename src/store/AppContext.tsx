@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AppState as NativeAppState, Appearance, useColorScheme } from "react-native";
-import { syncHabitReminders } from "../engine/reminders";
+import { syncHabitReminders, notifyStreakMilestone, notifyStreakBroken, scheduleRecoveryReminder } from "../engine/reminders";
 import { deriveMetrics } from "../engine/fitness";
 import { generateDietPlan, recommendSupplements } from "../engine/nutrition";
 import { getWorkoutSplitOptions } from "../engine/plans";
@@ -67,6 +67,7 @@ type AppContextValue = {
   drawChallenge: () => void;
   completeChallenge: () => void;
   checkInDailyStreak: () => void;
+  setThemeMode: (mode: ThemeMode) => void;
 };
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
@@ -158,7 +159,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       if (nextState !== "active") return;
       setThemeMode(themeFromScheme(Appearance.getColorScheme() ?? colorScheme));
     });
-
     return () => subscription.remove();
   }, [colorScheme]);
 
@@ -287,30 +287,24 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       if (!lastCheckInDate) {
         return {
           ...current,
-          dailyStreak: {
-            current: 1,
-            lastCheckInDate: today
-          }
+          dailyStreak: { current: 1, lastCheckInDate: today },
         };
       }
 
       const gap = daysBetween(lastCheckInDate, today);
       if (gap === 1) {
+        const next = current.dailyStreak.current + 1;
+        // Fire milestone notification asynchronously
+        void notifyStreakMilestone(next);
         return {
           ...current,
-          dailyStreak: {
-            current: current.dailyStreak.current + 1,
-            lastCheckInDate: today
-          }
+          dailyStreak: { current: next, lastCheckInDate: today },
         };
       }
 
       return {
         ...current,
-        dailyStreak: {
-          current: 1,
-          lastCheckInDate: today
-        }
+        dailyStreak: { current: 1, lastCheckInDate: today },
       };
     });
   };
@@ -346,17 +340,24 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           completedAll && !normalized.historyDates?.includes(today)
             ? [...(normalized.historyDates ?? []), today]
             : normalized.historyDates ?? [];
+        const nextStreak =
+          completedAll && normalized.lastCompletedDate !== today
+            ? normalized.streak + 1
+            : normalized.streak;
+
+        // Fire milestone notification when streak hits a milestone
+        if (completedAll && nextStreak !== normalized.streak) {
+          void notifyStreakMilestone(nextStreak);
+        }
+
         return {
           ...normalized,
           completedSlotsToday,
           historyDates,
-          streak:
-            completedAll && normalized.lastCompletedDate !== today
-              ? normalized.streak + 1
-              : normalized.streak,
-          lastCompletedDate: completedAll ? today : normalized.lastCompletedDate
+          streak: nextStreak,
+          lastCompletedDate: completedAll ? today : normalized.lastCompletedDate,
         };
-      })
+      }),
     }));
   };
 
@@ -408,12 +409,14 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     setState((current) => ({ ...current, activePlanId: planId }));
   };
 
+
   const drawChallenge = () => {
-    setState((current) => ({
-      ...current,
-      activeChallenge: getRandomChallenge()
-    }));
+    const challenge = getRandomChallenge();
+    setState((current) => ({ ...current, activeChallenge: challenge }));
+    // Remind at 20:00 if challenge isn't completed by end of day
+    void scheduleRecoveryReminder(challenge.title, 20, 0);
   };
+
 
   const completeChallenge = () => {
     const today = localDateKey();
@@ -457,7 +460,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     choosePlan,
     drawChallenge,
     completeChallenge,
-    checkInDailyStreak
+    checkInDailyStreak,
+    setThemeMode
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

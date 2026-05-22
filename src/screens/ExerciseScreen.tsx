@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { Linking, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Linking, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { ExerciseDemo } from "../components/ExerciseDemo";
 import { LineChart } from "react-native-chart-kit";
 import { SetLogger } from "../components/SetLogger";
-import { GhostButton, KeyStat, LabeledInput, MiniStat, OptionChip, PrimaryButton, SectionCard } from "../components/ui";
+import { GhostButton, KeyStat, LabeledInput, MiniStat, OptionChip, PrimaryButton, ScreenHero, SectionCard } from "../components/ui";
 import { EXERCISES } from "../data/exercises";
 import { buildJumpCheck, formatShortDate, getExerciseById, getExerciseLogs, recommendProgression } from "../engine/fitness";
 import { getExercisesByMuscle } from "../engine/habits";
@@ -12,6 +12,8 @@ import { useExerciseMemory } from "../hooks/useExerciseMemory";
 import { useApp } from "../store/AppContext";
 import { radius, shadows, spacing } from "../theme";
 import { LoggedSet, MuscleGroup } from "../types";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import type { ExerciseStackParamList } from "../navigation/types";
 
 type DraftSet = {
   reps: string;
@@ -57,7 +59,9 @@ const dashboardModes: Array<{ id: DashboardMode; label: string }> = [
   { id: "plan", label: "Plan" }
 ];
 
-export const ExerciseScreen = () => {
+type Props = NativeStackScreenProps<ExerciseStackParamList, "ExerciseToday">;
+
+export const ExerciseScreen = ({ navigation }: Props) => {
   const { state, metrics, savedPlans, choosePlan, logWorkout, palette, checkInDailyStreak } = useApp();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const profile = state.profile;
@@ -290,10 +294,8 @@ export const ExerciseScreen = () => {
   const pageEyebrow = dashboardMode === "train" ? "Exercise detail" : dashboardMode === "plan" ? "Split builder" : "Readiness-first training";
   const pageNote = dashboardMode === "train" ? actionNote : focusCopy;
 
-  const selectExercise = (exerciseId: string, exerciseName: string) => {
-    setSelectedExerciseId(exerciseId);
-    setDashboardMode("train");
-    setActionNote(`Loaded ${exerciseName}. Review the last set, PR, and recommendation before training.`);
+  const selectExercise = (exerciseId: string) => {
+    navigation.push("ExerciseDetail", { exerciseId });
   };
 
   const startSessionClock = () => {
@@ -435,20 +437,36 @@ export const ExerciseScreen = () => {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <View style={styles.pageHeader}>
-        <Text style={styles.pageEyebrow}>{pageEyebrow}</Text>
-        <Text style={styles.pageTitle}>{pageTitle}</Text>
-        <View style={styles.pageMetaRow}>
-          <View style={styles.pageMetaPill}>
-            <Text style={styles.pageMetaLabel}>Today</Text>
-            <Text style={styles.pageMetaValue}>{formatShortDate(new Date().toISOString())}</Text>
-          </View>
-          <View style={styles.pageMetaPill}>
-            <Text style={styles.pageMetaLabel}>Readiness</Text>
-            <Text style={[styles.pageMetaValue, styles.pageMetaValueAccent]}>{metrics?.readinessScore ?? "--"}</Text>
-          </View>
+      <ScreenHero
+        eyebrow={pageEyebrow}
+        title={pageTitle}
+        subtitle={pageNote}
+        metric={`${metrics?.readinessScore ?? "--"}`}
+        metricLabel="ready"
+        accent={metrics && metrics.readinessScore < 40 ? palette.red : metrics && metrics.readinessScore < 70 ? palette.gold : palette.orange}
+        icon={dashboardMode === "plan" ? "map-outline" : dashboardMode === "train" ? "barbell-outline" : "flash-outline"}
+      />
+
+      <View style={styles.pageMetaRow}>
+        <View style={styles.pageMetaPill}>
+          <Text style={styles.pageMetaLabel}>Today</Text>
+          <Text style={styles.pageMetaValue}>{formatShortDate(new Date().toISOString())}</Text>
         </View>
-        <Text style={styles.pageNote}>{pageNote}</Text>
+        <Pressable
+          onPress={() => navigation.push("Readiness")}
+          style={({ pressed }) => [
+            styles.pageMetaPill,
+            styles.pageMetaPillButton,
+            pressed ? styles.pageMetaPillPressed : null
+          ]}
+        >
+          <Text style={styles.pageMetaLabel}>Readiness</Text>
+          <Text style={[styles.pageMetaValue, styles.pageMetaValueAccent]}>{metrics?.readinessScore ?? "--"}</Text>
+          <View style={styles.pageMetaActionRow}>
+            <Text style={styles.pageMetaAction}>Open full breakdown</Text>
+            <Ionicons name="chevron-forward" size={14} color={palette.orange} />
+          </View>
+        </Pressable>
       </View>
 
       <View style={styles.modeRow}>
@@ -569,6 +587,11 @@ export const ExerciseScreen = () => {
               <Text style={styles.copy}>Enter a heavier target than your current load to get a staged progression path.</Text>
             )}
           </SectionCard>
+
+          <GhostButton
+            label="Open readiness breakdown"
+            onPress={() => navigation.push("Readiness")}
+          />
         </>
       ) : null}
 
@@ -585,7 +608,7 @@ export const ExerciseScreen = () => {
                   key={item.id}
                   label={item.name}
                   selected={selectedExerciseId === item.id}
-                  onPress={() => selectExercise(item.id, item.name)}
+                  onPress={() => selectExercise(item.id)}
                 />
               ))}
             </View>
@@ -928,12 +951,29 @@ const createStyles = (palette: ReturnType<typeof useApp>["palette"]) =>
       gap: 2,
       ...shadows.card
     },
+    pageMetaPillButton: {
+      minWidth: 164,
+    },
+    pageMetaPillPressed: {
+      opacity: 0.9,
+      transform: [{ scale: 0.985 }]
+    },
     pageMetaLabel: {
       color: palette.textMuted,
       fontSize: 11,
       fontWeight: "700",
       letterSpacing: 2,
       textTransform: "uppercase"
+    },
+    pageMetaActionRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4
+    },
+    pageMetaAction: {
+      color: palette.orange,
+      fontSize: 12,
+      fontWeight: "700"
     },
     pageMetaValue: {
       color: palette.text,
