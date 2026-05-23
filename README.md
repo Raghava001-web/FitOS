@@ -1,5 +1,9 @@
 # FitOS 🏋️‍♂️📱 — premium On-Device Android Fitness Coach & OS
 
+> [!WARNING]  
+> **🚨 ACTIVE DEVELOPMENT PHASE — NOT YET COMPLETED**  
+> FitOS is an ongoing engineering prototype. Core UI structures, numerical calculation engines, local storage schemas, and navigation stacks are fully functional and compile cleanly. However, advanced hardware-level integrations (such as native smartwatch biometric syncing, Bluetooth scales, and full production user authentication) are still actively in development. This is a pre-release work-in-progress and not a finalized production build.
+
 FitOS is a luxurious, high-fidelity native **Android Fitness Coaching & OS** built with **React Native (Expo SDK 54)** and **TypeScript**. Designed for athletes who demand premium visual aesthetics and secure on-device intelligence, FitOS functions as an advanced gym coach, recovery advisor, workout memory system, multi-slot habit builder, and diet helper. 
 
 All computations, progression analysis, and data logging are handled **100% locally and securely on-device** using persistent AsyncStorage, ensuring zero server latency and absolute privacy.
