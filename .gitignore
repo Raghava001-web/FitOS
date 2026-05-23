@@ -7,3 +7,10 @@ dist/
 *.err
 .DS_Store
 Thumbs.db
+
+# Stale web and helper files
+web/
+setup_web.js
+start-expo-lan.cmd
+start-expo-tunnel-https.cmd
+.expo-export-check-ios/
